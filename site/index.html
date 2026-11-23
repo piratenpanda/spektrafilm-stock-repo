@@ -3,22 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Lightbox: every spektrafilm stock for darktable</title>
+<title>Spektrafilm Pack Creator for darktable</title>
 <meta name="description" content="Pick film and paper profiles from darktable and Negs, synced from git every night, and download them as one spektrafilm pack for darktable.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='2' y='6' width='28' height='20' rx='2' fill='%23d9825c'/><rect x='5' y='8' width='3' height='2' fill='%23fff'/><rect x='11' y='8' width='3' height='2' fill='%23fff'/><rect x='17' y='8' width='3' height='2' fill='%23fff'/><rect x='23' y='8' width='3' height='2' fill='%23fff'/><rect x='5' y='22' width='3' height='2' fill='%23fff'/><rect x='11' y='22' width='3' height='2' fill='%23fff'/><rect x='17' y='22' width='3' height='2' fill='%23fff'/><rect x='23' y='22' width='3' height='2' fill='%23fff'/><rect x='5' y='12' width='22' height='8' fill='%2340190a'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header class="top">
-  <a class="brand" href="./" aria-label="Lightbox home">
+  <a class="brand" href="./" aria-label="Spektrafilm Pack Creator home">
     <svg class="brand-mark" viewBox="0 0 32 20" aria-hidden="true"><rect width="32" height="20" rx="2"/><g class="holes"><rect x="3" y="2" width="3" height="2"/><rect x="10" y="2" width="3" height="2"/><rect x="17" y="2" width="3" height="2"/><rect x="24" y="2" width="3" height="2"/><rect x="3" y="16" width="3" height="2"/><rect x="10" y="16" width="3" height="2"/><rect x="17" y="16" width="3" height="2"/><rect x="24" y="16" width="3" height="2"/></g></svg>
-    <span>Lightbox</span>
+    <span>Spektrafilm Pack Creator</span>
   </a>
   <nav class="top-nav" aria-label="Sections">
     <a href="#stocks">Film stocks</a>
+    <a href="#upsampling">Upsampling</a>
     <a href="#install">Install</a>
     <a href="#faq">FAQ</a>
   </nav>
@@ -29,7 +30,7 @@
   <section class="hero">
     <div class="hero-copy">
       <h1>Every spektrafilm stock, in one darktable pack.</h1>
-      <p class="lede" id="lede">Film and paper profiles from darktable and Negs, pulled from git every night. Pick the stocks you want and download a pack darktable’s spektrafilm module reads as it is.</p>
+      <p class="lede" id="lede">Film and paper profiles from darktable and Negs, pulled from git every night. Pick the stocks and the spectral upsampling tables you want and download a pack darktable’s spektrafilm module reads as it is.</p>
       <p class="hero-actions">
         <a class="btn btn-primary" href="#stocks">Choose film stocks</a>
         <a class="btn" href="#install">How to install</a>
@@ -40,39 +41,56 @@
     </div>
   </section>
 
-  <section class="stocks" id="stocks" aria-labelledby="stocks-h">
-    <div class="section-head">
-      <h2 id="stocks-h">Film stocks</h2>
-      <p>Each strip is the stock’s own step wedge, worked out from its profile: density curves through the dye spectra, seen on a light table. Negatives show their orange mask, slides go to black.</p>
-    </div>
-
-    <div class="toolbar" role="search">
-      <label class="search">
-        <span class="visually-hidden">Search film stocks</span>
-        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4.5 4.5"/></svg>
-        <input id="q" type="search" placeholder="Search Portra, Velvia, 500T…" autocomplete="off">
-      </label>
-      <div class="chips" id="kind-chips" role="group" aria-label="Kind of stock"></div>
-      <div class="filters">
-        <div class="chips" id="source-chips" role="group" aria-label="Source"></div>
-        <label class="toggle"><input type="checkbox" id="hide-approx"> Hide approximate profiles</label>
+  <section class="section stocks" id="stocks" aria-labelledby="stocks-h">
+    <h2 id="stocks-h">Film stocks</h2>
+    <div class="section-body">
+      <div class="note-group">
+        <p class="note">Each box is a stock from the catalogue; the strip under it is the stock’s own step wedge, worked out from its profile: density curves through the dye spectra, seen on a light table. Negatives show their orange mask, slides go to black.</p>
+        <p class="note">Papers a selected film prints on are added on their own. Can’t find your film? <a href="#sources">See where the stocks come from</a>.</p>
       </div>
-      <div class="bulk">
-        <button type="button" class="link-btn" id="sel-shown">Select shown</button>
-        <button type="button" class="link-btn" id="clear-shown">Clear shown</button>
-        <button type="button" class="link-btn" id="sel-dt">darktable’s own set</button>
-        <button type="button" class="link-btn" id="copy-link">Copy link to this selection</button>
-      </div>
-    </div>
 
-    <div id="groups" aria-live="polite"><p class="empty" id="loading">Loading the catalogue…</p></div>
+      <div class="shelf-toolbar">
+        <p class="shelf-count"><span class="count" id="sel-count">0</span> of <span id="all-count">0</span> selected</p>
+        <div class="segs" id="kind-segs" role="group" aria-label="Kind of stock"></div>
+        <div class="shelf-bulk">
+          <div class="cover-scheme"><span id="scheme-label">Film box colors</span>
+            <div class="segs small" id="scheme-segs" role="group" aria-labelledby="scheme-label"></div></div>
+          <button type="button" class="button small" id="sel-shown">Select all</button>
+          <button type="button" class="button small" id="clear-shown">Clear</button>
+        </div>
+      </div>
+
+      <div class="shelf-filters" role="search">
+        <label class="search">
+          <span class="visually-hidden">Search film stocks</span>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4.5 4.5"/></svg>
+          <input id="q" type="search" placeholder="Search Portra, Velvia, 500T…" autocomplete="off">
+        </label>
+        <div class="segs small" id="source-segs" role="group" aria-label="Source"></div>
+        <label class="check"><input type="checkbox" id="hide-approx"> Hide approximate profiles</label>
+        <span class="shelf-links">
+          <button type="button" class="link-btn" id="sel-dt">darktable’s own set</button>
+          <button type="button" class="link-btn" id="copy-link">Copy link to this selection</button>
+        </span>
+      </div>
+
+      <div id="groups" class="shelf" aria-live="polite"><p class="empty" id="loading">Loading the catalogue…</p></div>
+    </div>
   </section>
 
-  <section class="install" id="install" aria-labelledby="install-h">
-    <div class="section-head">
-      <h2 id="install-h">Install</h2>
-      <p>darktable prefers a pack you install by hand over the ones it downloads, so this pack takes over as soon as darktable restarts.</p>
+  <section class="section upsampling" id="upsampling" aria-labelledby="up-h" hidden>
+    <h2 id="up-h">Spectral upsampling</h2>
+    <div class="section-body">
+      <p class="note">darktable turns each pixel’s colour into a spectrum before the film sees it, through a spectral upsampling table. The pack can carry one table or both; the module lists every table it carries, and an edit records the one it renders with.</p>
+      <div class="modules" id="tables"></div>
+      <p class="module-warning" id="tables-warn" hidden></p>
     </div>
+  </section>
+
+  <section class="section install" id="install" aria-labelledby="install-h">
+    <h2 id="install-h">Install</h2>
+    <div class="section-body">
+    <p class="note">darktable prefers a pack you install by hand over the ones it downloads, so this pack takes over as soon as darktable restarts.</p>
     <div class="os-tabs" role="tablist" aria-label="Operating system">
       <button role="tab" id="tab-linux" aria-selected="true" aria-controls="os-panel" data-os="linux">Linux</button>
       <button role="tab" id="tab-mac" aria-selected="false" aria-controls="os-panel" data-os="mac">macOS</button>
@@ -80,13 +98,18 @@
     </div>
     <ol class="steps" id="os-panel" role="tabpanel">
       <li><h3>Download the pack</h3><p>Pick your stocks above and press Download pack. You get one zip with a <code>spektrafilm</code> folder inside.</p></li>
-      <li><h3>Put the folder in darktable’s data folder</h3><p>Unzip into <code class="os-path" data-linux="~/.local/share/darktable/" data-mac="~/.local/share/darktable/" data-win="%LOCALAPPDATA%\darktable\">~/.local/share/darktable/</code> so you end up with <code class="os-path" data-linux="~/.local/share/darktable/spektrafilm/pack.json" data-mac="~/.local/share/darktable/spektrafilm/pack.json" data-win="%LOCALAPPDATA%\darktable\spektrafilm\pack.json">~/.local/share/darktable/spektrafilm/pack.json</code>. If a <code>spektrafilm</code> folder with a <code>pack.json</code> is already there, move it somewhere safe first. Leave the <code>packs</code> folder alone: it holds darktable’s downloads.</p></li>
-      <li><h3>Restart darktable</h3><p>Open the spektrafilm module. Your stocks are in the film and paper lists. To go back to darktable’s own pack, delete <code>pack.json</code>, <code>spectra_lut.f32</code> and <code>profiles</code> from that folder and restart.</p></li>
+      <li><h3>Put the folder in darktable’s data folder</h3><p>Unzip into <code class="os-path" data-linux="~/.local/share/darktable/" data-mac="~/.local/share/darktable/" data-win="%LOCALAPPDATA%\darktable\">~/.local/share/darktable/</code> so you end up with <code class="os-path" data-linux="~/.local/share/darktable/spektrafilm/pack.json" data-mac="~/.local/share/darktable/spektrafilm/pack.json" data-win="%LOCALAPPDATA%\darktable\spektrafilm\pack.json">~/.local/share/darktable/spektrafilm/pack.json</code>. If a <code>spektrafilm</code> folder with a <code>pack.json</code> is already there, move its <code>pack.json</code>, <code>spectra_lut*.f32</code> and <code>profiles</code> somewhere safe first. Leave the <code>packs</code> folder alone: it holds darktable’s downloads.</p></li>
+      <li><h3>Restart darktable</h3><p>Open the spektrafilm module. Your stocks are in the film and paper lists, and the tables you chose in its spectral upsampling list. To go back to darktable’s own pack, delete <code>pack.json</code>, the <code>spectra_lut*.f32</code> files and <code>profiles</code> from that folder and restart.</p></li>
+      <li><h3>Make it the default pack</h3><p>New edits already use the pack you install by hand. To name it explicitly, for example while other packs are installed beside it, close darktable and add this line to <code class="os-path" data-linux="~/.config/darktable/darktablerc" data-mac="~/.config/darktable/darktablerc" data-win="%LOCALAPPDATA%\darktable\darktablerc">~/.config/darktable/darktablerc</code>. The hash is this pack’s own and follows your selection.</p>
+        <div class="rc" id="rc" hidden><code id="rc-line"></code><button type="button" class="button small" id="rc-copy">Copy</button></div>
+        <p class="rc-none" id="rc-none">Select at least one film to get the line.</p></li>
     </ol>
+    </div>
   </section>
 
-  <section class="faq" id="faq" aria-labelledby="faq-h">
-    <div class="section-head"><h2 id="faq-h">Questions</h2></div>
+  <section class="section faq" id="faq" aria-labelledby="faq-h">
+    <h2 id="faq-h">Questions</h2>
+    <div class="section-body">
     <details><summary>Where do the stocks come from?</summary>
       <p>darktable’s own data pack (<a href="https://github.com/darktable-org/darktable-spektrafilm">darktable-spektrafilm</a>) is the base. Every stock from <a href="https://github.com/noahhaasis/negs">Negs</a> that darktable does not have is added with <code>negs_to_darktable_pack.py</code>: B&amp;W profiles are widened to three channels, the exposure grid is snapped to the pack’s, and grain, couplers, halation and print filters are filled in from Negs’ presets. Nothing darktable already defines is changed.</p></details>
     <details><summary>How often is it updated?</summary>
@@ -96,20 +119,24 @@
     <details><summary>What does “approximate” mean?</summary>
       <p>The profile was not transcribed from a manufacturer’s datasheet. Most of these are Fotufilm profiles converted for Negs; they render well but are fitted rather than measured.</p></details>
     <details><summary>Why are some papers added on their own?</summary>
-      <p>darktable prints every film on a paper. Each film names one, or darktable picks the first suitable paper in the pack. Lightbox always includes the paper each selected film would use with the whole catalogue, so a smaller pack renders the same as the full one.</p></details>
+      <p>darktable prints every film on a paper. Each film names one, or darktable picks the first suitable paper in the pack. The pack creator always includes the paper each selected film would use with the whole catalogue, so a smaller pack renders the same as the full one.</p></details>
     <details><summary>Can I share or sell the pack?</summary>
       <p>The profiles are CC BY-SA 4.0. You can share and adapt them if you credit the authors, keep the licence and note your changes; the zip carries the licences and a credit list for exactly what you picked. The spektrafilm author asks that the data is not resold.</p></details>
+    <details><summary>Which spectral upsampling table should I pick?</summary>
+      <p><code>hanatos2025</code> is the table darktable’s pack has always shipped and the one every existing edit was made with. <code>arctic2026beta04</code> is a reflectance table recovered under D65, and a beta: it renders differently, not better. Keep both in the pack to switch per edit in the module. Making arctic the table new edits start with also changes edits that never chose a table, and darktable then warns that they were developed with a different one.</p></details>
+    </div>
   </section>
 
-  <section class="sources" id="sources" aria-labelledby="sources-h">
-    <div class="section-head"><h2 id="sources-h">Sources of this build</h2></div>
-    <div id="source-list" class="source-list"></div>
+  <section class="section sources" id="sources" aria-labelledby="sources-h">
+    <h2 id="sources-h">Sources</h2>
+    <div class="section-body"><div id="source-list" class="source-list"></div></div>
   </section>
 </main>
 
 <footer class="foot">
   <p>Film data: <a href="https://github.com/andreavolpato/spektrafilm">spektrafilm</a> by Andrea Volpato, Fotufilm profiles by MUAStudio Inc., Negs preparations by Noah Haasis. All CC BY-SA 4.0. Packaging for darktable by <a href="https://github.com/darktable-org/darktable-spektrafilm">darktable</a>.</p>
-  <p>Lightbox is not affiliated with darktable, Kodak, Fujifilm, Ilford, Agfa, Harman, CineStill or Lomography. Film and paper names are trademarks of their owners.</p>
+  <p>The page design and the film box covers follow <a href="https://github.com/ahonn/grkit">GRKit</a>’s film look picker, MIT License, Copyright (c) 2026 ahonn (<a href="vendor/grkit-LICENSE.txt">licence</a>). Fonts: IBM Plex, SIL Open Font License 1.1.</p>
+  <p>Spektrafilm Pack Creator is not affiliated with darktable, GRKit, Kodak, Fujifilm, Ilford, Agfa, Harman, CineStill or Lomography. Film and paper names are trademarks of their owners; the box colours only help tell the stocks apart.</p>
 </footer>
 
 <div class="tray" id="tray" aria-live="polite">
@@ -132,6 +159,7 @@
 <div class="toast" id="toast" role="status" hidden></div>
 
 <script src="vendor/fflate-0.8.2.js"></script>
+<script src="covers.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

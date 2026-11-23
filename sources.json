@@ -1,9 +1,9 @@
 {
   "base": {
     "name": "darktable",
-    "repo": "https://github.com/darktable-org/darktable-spektrafilm",
-    "ref": "main",
-    "pack": null
+    "repo": "https://github.com/piratenpanda/darktable-spektrafilm",
+    "ref": "arctic_upsampling",
+    "pack": "packs/0.3.4"
   },
   "extensions": [
     {

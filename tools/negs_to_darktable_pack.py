@@ -28,7 +28,9 @@ changing nothing the base pack already defines:
      the paper it used before
 
 The result is written as a hand-installed pack, which darktable prefers over its
-downloads: <user data>/darktable/spektrafilm/{pack.json,spectra_lut.f32,profiles/}.
+downloads: <user data>/darktable/spektrafilm/{pack.json,spectra_lut*.f32,profiles/}.
+Every spectral upsampling table the base pack declares (pack_format 3) is copied
+along unchanged.
 
 Usage:
     python3 -I negs_to_darktable_pack.py --negs ~/src/negs [--base PACKDIR] [--out DIR] [--force]
@@ -287,6 +289,17 @@ def auto_paper(film, entries):
 
 # --------------------------------------------------------------------- main --
 
+def table_files(pack):
+    """The spectral upsampling table files a pack reads: the one fixed name below
+    pack_format 3, every file the spectral_upsampling block declares from 3 on."""
+    if pack.get('pack_format', 2) < 3:
+        return ['spectra_lut.f32']
+    files = [e['file'] for e in pack.get('spectral_upsampling', [])]
+    if not files or any('/' in f or '\\' in f or f in ('', '.', '..') for f in files):
+        sys.exit("base pack.json declares no usable spectral_upsampling files")
+    return files
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     ap.add_argument('--negs', required=True, type=Path, help='a Negs checkout')
@@ -304,7 +317,7 @@ def main():
         base = max(packs, key=lambda p: (p / 'pack.json').stat().st_mtime)
     out = args.out or sf_dir
     negs = args.negs
-    for p in (base / 'pack.json', base / 'spectra_lut.f32', base / 'profiles',
+    for p in (base / 'pack.json', base / 'profiles',
               negs / 'data' / 'profiles', negs / 'data' / 'presets' / 'couplers.toml',
               negs / 'data' / 'presets' / 'grain.toml', negs / 'data' / 'filters' / 'neutral_print_filters.json'):
         if not p.exists():
@@ -317,6 +330,10 @@ def main():
     pack = json.loads(pack_raw)
     if pack.get('pack_format') not in (2, 3):
         sys.exit(f"base pack_format {pack.get('pack_format')} is not one this script knows")
+    tables = table_files(pack)
+    for t in tables:
+        if not (base / t).exists():
+            sys.exit(f"missing {base / t}")
     rd = pack['film_render_defaults']
     couplers = tomllib.loads((negs / 'data/presets/couplers.toml').read_text())
     grain = tomllib.loads((negs / 'data/presets/grain.toml').read_text())
@@ -438,7 +455,8 @@ def main():
     if tmp.exists():
         shutil.rmtree(tmp)
     (tmp / 'profiles').mkdir(parents=True)
-    shutil.copy2(base / 'spectra_lut.f32', tmp / 'spectra_lut.f32')
+    for t in tables:
+        shutil.copy2(base / t, tmp / t)
     for st, (p, d) in base_profiles.items():
         if st in pinned:
             (tmp / 'profiles' / p.name).write_text(set_target_print(p.read_text(), pinned[st]))
@@ -464,7 +482,9 @@ def main():
         if k not in ('illuminants', 'film_render_defaults', 'neutral_print_filters'):
             assert chk[k] == pack[k], k
 
-    existing = [n for n in ('pack.json', 'spectra_lut.f32', 'profiles') if (out / n).exists()]
+    pack_files = ['pack.json', *tables, 'profiles']
+    stale = sorted(p.name for p in out.glob('spectra_lut*.f32') if p.name not in tables)
+    existing = [n for n in (*pack_files, *stale) if (out / n).exists()]
     if existing:
         if not args.force:
             shutil.rmtree(tmp)
@@ -474,7 +494,7 @@ def main():
         for n in existing:
             shutil.move(str(out / n), str(backup / n))
         print(f"previous pack moved to {backup}")
-    for n in ('pack.json', 'spectra_lut.f32', 'profiles'):
+    for n in pack_files:
         shutil.move(str(tmp / n), str(out / n))
     tmp.rmdir()
 

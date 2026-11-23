@@ -9,7 +9,8 @@ Run by .github/workflows/sync.yml on a schedule. It
      default) and folds its profiles into the pack with negs_to_darktable_pack.py,
      one extension after another,
   3. writes the merged pack to <out>/pack/ and a catalogue the page reads:
-     <out>/catalog.json        every stock, its source, licence and a step wedge
+     <out>/catalog.json        every stock, its source, licence and a step wedge,
+                               and the pack's spectral upsampling tables
      <out>/stocks/<stock>.json curves for the detail panel
      <out>/build-log.txt       the merge script's full output
 
@@ -95,7 +96,7 @@ def pick_base_pack(repo_dir, want):
     manifest = json.loads((repo_dir / 'manifest.json').read_text())
     packs = manifest['packs']
     if want:
-        chosen = [p for p in packs if want in (p['base'], p['lut_hash'], p['spektrafilm_version'])]
+        chosen = [p for p in packs if want in (p['base'], p.get('pack_hash'), p['lut_hash'], p['spektrafilm_version'])]
         if not chosen:
             sys.exit(f"base pack {want!r} is not in the manifest")
         entry = chosen[0]
@@ -136,6 +137,66 @@ def _to_hex(xyz, white):
     rgb = np.clip(XYZ_TO_SRGB @ xyz65, 0, 1)
     rgb = np.where(rgb <= 0.0031308, 12.92 * rgb, 1.055 * rgb ** (1 / 2.4) - 0.055)
     return '#' + ''.join(f'{int(round(c * 255)):02x}' for c in rgb)
+
+
+def fnv1a(data, h=2166136261):
+    """FNV-1a, 32 bit, continuing from h: the hash pack_hash and the tables use."""
+    for b in data:
+        h = ((h ^ b) * 16777619) & 0xFFFFFFFF
+    return h
+
+
+def pack_hash_seed(pack):
+    """FNV-1a state after the part of darktable-spektrafilm's pack_hash text that
+    does not depend on which stocks and tables a pack carries (pack format,
+    spektrafilm version, model constants). The page continues it with one
+    '\\ntable=identifier:kind:file' line per table in declaration order and one
+    '\\nprofile=file:fnv' line per profile sorted by file name, as
+    tools/spektrafilm_export_data.py writes them."""
+    constants = {k: v for k, v in pack.items() if k not in ('spectral_upsampling', 'pack_hash')}
+    head = '\n'.join([f"pack_format={pack['pack_format']}",
+                      f"spektrafilm_version={pack['spektrafilm_version']}",
+                      'constants=' + json.dumps(constants, sort_keys=True, separators=(',', ':'))])
+    return fnv1a(head.encode())
+
+
+def pack_hash(seed, tables, profiles):
+    """pack_hash of a pack carrying `tables` (declaration dicts, in order) and
+    `profiles` ({file name: profile bytes})."""
+    h = seed
+    for t in tables:
+        h = fnv1a(f"\ntable={t['identifier']}:{t['kind']}:{t['file']}".encode(), h)
+    for name in sorted(profiles):
+        h = fnv1a(f"\nprofile={name}:{fnv1a(profiles[name]):08x}".encode(), h)
+    return f'{h:08x}'
+
+
+def table_list(pack_out, pack, entry):
+    """Every spectral upsampling table of the published pack, default first, with
+    what the page needs to offer it as a choice and to rewrite pack.json's
+    spectral_upsampling block when a table is left out."""
+    from_manifest = {t['file']: t for t in entry.get('tables', [])}
+    decl = pack.get('spectral_upsampling') if pack.get('pack_format', 2) >= 3 else None
+    if not decl:
+        decl = [{'identifier': None, 'kind': 'irradiance', 'file': 'spectra_lut.f32', 'default': True}]
+    out = []
+    for d in decl:
+        f = pack_out / d['file']
+        m = from_manifest.get(d['file'], {})
+        out.append({
+            'identifier': d.get('identifier'),
+            'kind': d.get('kind'),
+            'file': d['file'],
+            'default': bool(d.get('default')),
+            'scene_illuminant': d.get('scene_illuminant'),
+            'lut_hash': m.get('lut_hash') or (entry.get('lut_hash') if d.get('default') else None),
+            'lut_id': m.get('lut_id') or (entry.get('lut_id') if d.get('default') else None),
+            'decl': d,
+            'size': f.stat().st_size,
+            'sha256': sha256(f),
+        })
+    out.sort(key=lambda t: not t['default'])
+    return out
 
 
 def development_index(data):
@@ -386,6 +447,7 @@ def main():
             'file': f"profiles/{p.name}",
             'size': p.stat().st_size,
             'sha256': sha256(p),
+            'fnv': f'{fnv1a(p.read_bytes()):08x}',
             'wedge': wedge,
             'wedge_log_exposure': steps,
             'rebate': rebate,
@@ -397,8 +459,23 @@ def main():
     for s in stocks:
         del s['sort']
 
-    shared = {n: {'size': (pack_out / n).stat().st_size, 'sha256': sha256(pack_out / n)}
-              for n in ('pack.json', 'spectra_lut.f32')}
+    tables = table_list(pack_out, pack, base_entry)
+    shared = {'pack.json': {'size': (pack_out / 'pack.json').stat().st_size,
+                            'sha256': sha256(pack_out / 'pack.json')}}
+    seed = None
+    if pack.get('pack_format', 2) >= 3 and pack.get('pack_hash'):
+        seed = pack_hash_seed(pack)
+        # the recipe must reproduce the base pack's own pack_hash from its files,
+        # or the hashes the page writes would not mean what darktable takes them for
+        base_pack = json.loads((base_dir / 'pack.json').read_text())
+        got = pack_hash(pack_hash_seed(base_pack), base_pack['spectral_upsampling'],
+                        {p.name: p.read_bytes() for p in (base_dir / 'profiles').glob('*.json')})
+        if got != base_pack['pack_hash']:
+            sys.exit(f"pack_hash recipe gives {got} for the base pack, which declares {base_pack['pack_hash']}")
+        full = pack_hash(seed, pack['spectral_upsampling'],
+                         {p.name: p.read_bytes() for p in (pack_out / 'profiles').glob('*.json')})
+        log(f"pack_hash recipe reproduces the base pack's {got}; the full merged pack is {full}")
+
     catalog = {
         'format': 1,
         'built_at': dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
@@ -406,6 +483,9 @@ def main():
         'spektrafilm_version': pack.get('spektrafilm_version'),
         'lut_hash': base_entry.get('lut_hash'),
         'lut_id': base_entry.get('lut_id'),
+        'base_pack_hash': pack.get('pack_hash'),
+        'pack_hash_seed': f'{seed:08x}' if seed is not None else None,
+        'tables': tables,
         'sources': source_meta,
         'shared_files': shared,
         'licenses': [f"licenses/{name}" for _, name in licence_files],

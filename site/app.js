@@ -1,4 +1,4 @@
-/* Lightbox: pick spektrafilm stocks and zip them into a darktable pack.
+/* Spektrafilm Pack Creator: pick spektrafilm stocks and zip them into a darktable pack.
    Reads data/catalog.json (written by tools/build.py) and fetches pack files
    from data/pack/ when the pack is downloaded. No server code. */
 (() => {
@@ -15,10 +15,9 @@
     ['print-film', 'Print film'],
   ];
   const KIND_NAME = Object.fromEntries(KINDS);
-  const FILTER_KINDS = [
-    ['all', 'All'], ['negative', 'Colour negative'], ['cine', 'Cinema'], ['slide', 'Slide'],
-    ['bw', 'Black & white'], ['print', 'Print stocks'],
-  ];
+  const FILTER_KINDS = [['all', 'All'], ['color', 'Color'], ['bw', 'B&W'], ['print', 'Print']];
+  const KIND_FILTER = { negative: 'color', cine: 'color', slide: 'color', bw: 'bw', paper: 'print', 'print-film': 'print' };
+  const SCHEMES = [['gray', 'Off'], ['color', 'Color'], ['all', 'All']];
   const NEW_DAYS = 21;
 
   const $ = (s, el = document) => el.querySelector(s);
@@ -30,25 +29,51 @@
   let byId = new Map();
   const picked = new Set();
   const filt = { kind: 'all', source: 'all', q: '', hideApprox: false };
+  let scheme = 'all';
+  // spectral upsampling: the files of the tables put in the pack, and the one new edits start with
+  const up = { include: new Set(), def: null };
 
   /* ---------------------------------------------------------------- storage */
   function save() {
     try {
       localStorage.setItem(STORE, JSON.stringify({
         pick: [...picked], known: cat.stocks.map(s => s.stock),
+        scheme, tables: [...up.include], table_default: up.def,
       }));
     } catch (_) { /* private mode: the page still works */ }
   }
 
+  function restoreTables(saved) {
+    const tables = cat.tables || [];
+    const byFile = new Map(tables.map(t => [t.file, t]));
+    const byIdent = new Map(tables.filter(t => t.identifier).map(t => [t.identifier, t]));
+    up.include = new Set(tables.map(t => t.file));
+    up.def = tables[0] ? tables[0].file : null;
+    const q = new URLSearchParams(location.search);
+    if (q.get('table') && byIdent.has(q.get('table'))) {
+      up.def = byIdent.get(q.get('table')).file;
+      if (q.get('only') === '1') up.include = new Set([up.def]);
+      return;
+    }
+    if (saved && Array.isArray(saved.tables)) {
+      const inc = saved.tables.filter(f => byFile.has(f));
+      if (inc.length) up.include = new Set(inc);
+      if (saved.table_default && up.include.has(saved.table_default)) up.def = saved.table_default;
+      else up.def = tables.find(t => up.include.has(t.file)).file;
+    }
+  }
+
   function restore() {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(STORE) || 'null'); } catch (_) { saved = null; }
+    if (saved && SCHEMES.some(([k]) => k === saved.scheme)) scheme = saved.scheme;
+    restoreTables(saved);
     const url = new URLSearchParams(location.search).get('pick');
     if (url) {
       const ids = url === 'all' ? cat.stocks.map(s => s.stock) : url.split(',');
       ids.filter(id => byId.has(id)).forEach(id => picked.add(id));
       return;
     }
-    let saved = null;
-    try { saved = JSON.parse(localStorage.getItem(STORE) || 'null'); } catch (_) { saved = null; }
     if (!saved || !Array.isArray(saved.pick)) {
       cat.stocks.forEach(s => picked.add(s.stock));
       return;
@@ -91,46 +116,12 @@
       picked.delete(id);
     } else {
       picked.add(id);
-      const tile = document.getElementById('s-' + id);
-      if (tile) flash(tile);
     }
     save();
     paintStates();
   }
 
-  // the grease-pencil ring: drawn when a stock is picked, then wiped off
-  function flash(tile) {
-    const svg = tile.querySelector('.ring');
-    const path = svg.querySelector('path');
-    const w = svg.clientWidth, h = svg.clientHeight;
-    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-    path.setAttribute('d', ringPath(w, h));
-    clearTimeout(tile._ringTimer);
-    tile.classList.remove('flash', 'fade');
-    void path.getBoundingClientRect();
-    tile.classList.add('flash');
-    tile._ringTimer = setTimeout(() => {
-      tile.classList.add('fade');
-      tile._ringTimer = setTimeout(() => {
-        path.style.transition = 'none';
-        tile.classList.remove('flash', 'fade');
-        requestAnimationFrame(() => { path.style.transition = ''; });
-      }, 450);
-    }, 900);
-  }
-
   /* ------------------------------------------------------------- rendering */
-  const RING = '<svg class="ring" aria-hidden="true"><path pathLength="1"/></svg>';
-  // a hand-drawn loop in percent of the tile, scaled to its pixels so the stroke stays even
-  const RING_PTS = [[7, 8], [30, 2.5, 70, 1.5, 95, 5.5], [98.6, 30, 98.8, 70, 94.6, 95], [66, 98.6, 32, 99, 5.5, 94.5],
-    [1.8, 70, 1.4, 34, 4, 9], [4.5, 6.5, 9, 4.8, 16, 4]];
-  function ringPath(w, h) {
-    const pt = (x, y) => `${(x / 100 * w).toFixed(1)},${(y / 100 * h).toFixed(1)}`;
-    return RING_PTS.map((c, i) => i === 0 ? `M${pt(c[0], c[1])}`
-      : `C${pt(c[0], c[1])} ${pt(c[2], c[3])} ${pt(c[4], c[5])}`).join(' ');
-  }
-  const TICK = '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 7.5l3 3 6-7"/></svg>';
-
   function stripHTML(s, opts = {}) {
     const paper = s.stage === 'printing' && s.kind === 'paper';
     const frames = s.wedge.map(c => `<i style="background:${c}"></i>`).join('');
@@ -146,29 +137,24 @@
   }
 
   function tileHTML(s) {
-    const tags = [];
-    if (isNew(s)) tags.push('<span class="tag new">New</span>');
-    tags.push(`<span class="tag">${s.in_base ? 'darktable' : esc(s.source)}</span>`);
-    if (s.approximate) tags.push('<span class="tag">Approximate</span>');
-    if (/experimental/i.test(s.name)) tags.push('<span class="tag">Experimental</span>');
-    if (s.channel_model === 'bw' && s.kind !== 'bw') tags.push('<span class="tag">B&amp;W</span>');
-    const model = s.model.replace(/\s*\((experimental)\)\s*/i, ' ').trim();
-    return `<article class="tile" data-id="${esc(s.stock)}" id="s-${esc(s.stock)}">
-      ${RING}
-      <button type="button" class="pick" aria-pressed="false" aria-label="${esc(s.name)}">
-        ${stripHTML(s)}
-        <span class="label"><span class="b">${esc(s.brand)}</span><span class="m">${esc(model)}</span><span class="box">${TICK}</span></span>
-        <span class="tags">${tags.join('')}</span>
-        <span class="need" hidden></span>
+    const meta = [isNew(s) ? 'New' : null, s.in_base ? 'darktable' : s.source,
+      s.approximate ? 'approximate' : null, /experimental/i.test(s.name) ? 'experimental' : null].filter(Boolean);
+    const wedge = s.wedge.map(c => `<i style="background:${c}"></i>`).join('');
+    return `<div class="shelf-tile" data-id="${esc(s.stock)}" id="s-${esc(s.stock)}">
+      <input type="checkbox" class="tile-check" aria-label="Add ${esc(s.name)} to the pack">
+      <button type="button" class="tile-body pick" aria-hidden="true" tabindex="-1">
+        ${Covers.svg(Covers.coverOf(s), scheme)}
+        <span class="wedge" style="--rb:${s.rebate}">${wedge}</span>
+        <span class="tile-name">${esc(s.model.replace(/\s*\((experimental)\)\s*/i, ' ').trim())}</span>
       </button>
-      <button type="button" class="more" aria-label="Details for ${esc(s.name)}">Details</button>
-    </article>`;
+      <span class="tile-meta${isNew(s) ? ' new' : ''}">${esc(meta.join(' · '))}</span>
+      <span class="tile-need" hidden></span>
+      <button type="button" class="tile-link more" aria-label="Details for ${esc(s.name)}">Details</button>
+    </div>`;
   }
 
   function matches(s) {
-    if (filt.kind !== 'all') {
-      if (filt.kind === 'print' ? s.stage !== 'printing' : s.kind !== filt.kind) return false;
-    }
+    if (filt.kind !== 'all' && KIND_FILTER[s.kind] !== filt.kind) return false;
     if (filt.source !== 'all' && (filt.source === 'darktable' ? !s.in_base : s.in_base || s.source !== filt.source)) return false;
     if (filt.hideApprox && s.approximate) return false;
     if (filt.q) {
@@ -190,24 +176,26 @@
     host.innerHTML = KINDS.map(([k, label]) => {
       const items = list.filter(s => s.kind === k);
       if (!items.length) return '';
-      return `<section class="group" aria-label="${esc(label)}">
-        <div class="group-head"><h3>${esc(label)}</h3><span class="n">${items.length}</span>
-          <button type="button" class="link-btn" data-group="${k}">Select all ${esc(label.toLowerCase())}</button></div>
-        <div class="grid">${items.map(tileHTML).join('')}</div></section>`;
+      return `<div class="shelf-label" role="heading" aria-level="3"><span>${esc(label)} <span class="n">${items.length}</span></span>
+          <button type="button" class="link-btn" data-group="${k}">Select all</button></div>
+        ${items.map(tileHTML).join('')}`;
     }).join('');
+    Covers.fit(host);
     paintStates();
   }
 
   function paintStates() {
     const { all, need } = included();
-    document.querySelectorAll('.tile').forEach(t => {
+    document.querySelectorAll('.shelf-tile').forEach(t => {
       const id = t.dataset.id;
       const on = picked.has(id);
       const req = !on && need.has(id);
-      t.classList.toggle('on', on);
+      if (on || req) t.dataset.checked = ''; else delete t.dataset.checked;
       t.classList.toggle('required', req);
-      t.querySelector('.pick').setAttribute('aria-pressed', String(on || req));
-      const n = t.querySelector('.need');
+      const box = t.querySelector('.tile-check');
+      box.checked = on || req;
+      box.indeterminate = req;
+      const n = t.querySelector('.tile-need');
       if (need.has(id)) {
         const films = need.get(id);
         n.hidden = false;
@@ -216,8 +204,10 @@
           : `Used by ${films.length === 1 ? films[0].name : plural(films.length, 'selected film', 'selected films')}`;
       } else n.hidden = true;
     });
+    $('#sel-count').textContent = all.size;
+    $('#all-count').textContent = cat.stocks.length;
     paintTray(all, need);
-    paintChips();
+    paintSegs();
   }
 
   function paintTray(all, need) {
@@ -232,9 +222,11 @@
     } else {
       $('#tray-count').textContent = `${plural(films.length, 'film', 'films')} and ${plural(prints, 'print stock', 'print stocks')}`;
       const size = sizeOf(all);
-      $('#tray-detail').textContent = `${mb(size)} unzipped` + (autoN ? `, ${plural(autoN, 'paper', 'papers')} added for your films` : '');
+      const tables = upsamplingKnown() ? `, ${declared().map(tableName).join(' + ')}` : '';
+      $('#tray-detail').textContent = `${mb(size)} unzipped${tables}` + (autoN ? `, ${plural(autoN, 'paper', 'papers')} added for your films` : '');
       btn.disabled = false;
     }
+    paintRcLine(films.length ? packHash([...all]) : null);
     const missingBase = cat.stocks.filter(s => s.in_base && !all.has(s.stock));
     const w = $('#tray-warn');
     if (missingBase.length && films.length) {
@@ -245,19 +237,22 @@
   }
 
   function sizeOf(ids) {
-    let n = cat.shared_files['pack.json'].size + cat.shared_files['spectra_lut.f32'].size;
+    let n = cat.shared_files['pack.json'].size;
+    tablesOn().forEach(t => { n += t.size; });
     ids.forEach(id => { n += byId.get(id).size; });
     return n;
   }
 
-  function paintChips() {
-    const count = k => cat.stocks.filter(s => k === 'all' || (k === 'print' ? s.stage === 'printing' : s.kind === k)).length;
-    $('#kind-chips').innerHTML = FILTER_KINDS.map(([k, label]) =>
-      `<button type="button" class="chip" data-kind="${k}" aria-pressed="${filt.kind === k}">${esc(label)}<span>${count(k)}</span></button>`).join('');
-    const sources = [['all', 'Every source'], ['darktable', 'In darktable’s pack'],
+  function paintSegs() {
+    const count = k => cat.stocks.filter(s => k === 'all' || KIND_FILTER[s.kind] === k).length;
+    $('#kind-segs').innerHTML = FILTER_KINDS.map(([k, label]) =>
+      `<button type="button" class="seg" data-kind="${k}" aria-pressed="${filt.kind === k}" title="${count(k)} stocks">${esc(label)}</button>`).join('');
+    const sources = [['all', 'Every source'], ['darktable', 'darktable’s pack'],
       ...cat.sources.filter(s => s.role === 'extension').map(s => [s.name, `Added from ${s.name}`])];
-    $('#source-chips').innerHTML = sources.map(([k, label]) =>
-      `<button type="button" class="chip" data-source="${esc(k)}" aria-pressed="${filt.source === k}">${esc(label)}</button>`).join('');
+    $('#source-segs').innerHTML = sources.map(([k, label]) =>
+      `<button type="button" class="seg" data-source="${esc(k)}" aria-pressed="${filt.source === k}">${esc(label)}</button>`).join('');
+    $('#scheme-segs').innerHTML = SCHEMES.map(([k, label]) =>
+      `<button type="button" class="seg" data-scheme="${k}" aria-pressed="${scheme === k}">${esc(label)}</button>`).join('');
   }
 
   function renderContact() {
@@ -293,7 +288,7 @@
         <p>Commit <a href="${esc(url)}/commit/${esc(s.commit)}"><code>${esc(s.commit.slice(0, 8))}</code></a>, ${esc(new Date(s.date).toLocaleDateString())}: ${esc(s.subject)}</p>
         ${skipped}</div>`;
     }).join('') + `<div class="src"><h3>This build</h3>
-        <p>Pack format ${esc(cat.pack_format)}, spektrafilm ${esc(cat.spektrafilm_version)}, spectral table <code>${esc(cat.lut_hash)}</code>. Built ${esc(built.toLocaleString())}.</p>
+        <p>Pack format ${esc(cat.pack_format)}, spektrafilm ${esc(cat.spektrafilm_version)}${cat.base_pack_hash ? `, base pack <code>${esc(cat.base_pack_hash)}</code>` : ''}, spectral ${(cat.tables || []).length > 1 ? 'tables' : 'table'} ${(cat.tables || []).map(t => `<code>${esc(t.lut_hash || '?')}</code>${t.identifier ? ' ' + esc(t.identifier) : ''}`).join(', ')}. Built ${esc(built.toLocaleString())}.</p>
         <p><a href="${DATA}build-log.txt">Build log</a>, <a href="${DATA}catalog.json">catalogue JSON</a></p></div>`;
   }
 
@@ -380,15 +375,118 @@
     $('#d-toggle').addEventListener('click', () => { toggle(id); openDetail(id); });
   }
 
+  /* ------------------------------------------------------- spectral tables */
+  const tablesOn = () => (cat.tables || []).filter(t => up.include.has(t.file));
+  // the tables the pack declares, the one new edits start with first
+  const declared = () => tablesOn().sort((a, b) => (b.file === up.def) - (a.file === up.def));
+  const upsamplingKnown = () => (cat.tables || []).some(t => t.identifier);
+  const tableName = t => t.identifier || 'spectral table';
+
+  function renderTables() {
+    const sec = $('#upsampling');
+    if (!upsamplingKnown()) { sec.hidden = true; return; }
+    sec.hidden = false;
+    const first = cat.tables[0];
+    $('#tables').innerHTML = cat.tables.map(t => {
+      const on = up.include.has(t.file), def = up.def === t.file;
+      const what = t.kind === 'reflectance'
+        ? `Reflectance table, recovered under ${esc(t.scene_illuminant || 'its scene illuminant')}.${/beta/i.test(t.identifier) ? ' A beta: it renders differently, not better.' : ''}`
+        : `Irradiance table.${t === first ? ' The one every edit so far was made with.' : ''}`;
+      return `<div class="module" data-file="${esc(t.file)}">
+        <label class="module-main"><input type="checkbox" data-include ${on ? 'checked' : ''} ${on && up.include.size === 1 ? 'disabled' : ''}>
+          <span class="module-text"><span class="module-name">${esc(tableName(t))}</span>
+          <span class="module-description">${what} <code>${esc(t.file)}</code>, ${mb(t.size)}, table hash <code>${esc(t.lut_hash || '?')}</code>.</span></span></label>
+        <label class="module-default"><input type="radio" name="table-default" data-default ${def ? 'checked' : ''}> New edits start with it</label>
+      </div>`;
+    }).join('');
+    const w = $('#tables-warn');
+    const msgs = [];
+    if (up.def !== first.file) msgs.push(`New edits start with ${tableName(cat.tables.find(t => t.file === up.def))}. Edits that never chose a table render with it too, and darktable warns that they were developed with a different one.`);
+    const out = cat.tables.filter(t => !up.include.has(t.file));
+    if (out.length) msgs.push(`Leaves out ${out.map(tableName).join(' and ')}. Edits that use it ask darktable to fetch a pack that carries it.`);
+    w.hidden = !msgs.length;
+    w.textContent = msgs.join(' ');
+  }
+
+  function setTable(file, include, makeDefault) {
+    if (include) up.include.add(file);
+    else if (up.include.size > 1) up.include.delete(file);
+    if (makeDefault) { up.include.add(file); up.def = file; }
+    if (!up.include.has(up.def)) up.def = declared()[0].file;
+    save(); renderTables(); paintStates();
+  }
+
+  /* pack_hash of the pack a download builds, by the recipe of darktable-spektrafilm's
+     tools/spektrafilm_export_data.py: FNV-1a over the pack format, spektrafilm
+     version and model constants (cat.pack_hash_seed, precomputed by build.py), one
+     line per declared table, and one line per profile with the FNV-1a of its file */
+  function fnv(str, h) {
+    const bytes = new TextEncoder().encode(str);
+    for (let i = 0; i < bytes.length; i++) h = Math.imul(h ^ bytes[i], 16777619) >>> 0;
+    return h >>> 0;
+  }
+  const hex8 = n => n.toString(16).padStart(8, '0');
+
+  function packHash(ids) {
+    if (!cat.pack_hash_seed) return null;
+    let h = parseInt(cat.pack_hash_seed, 16) >>> 0;
+    declared().forEach(t => { h = fnv(`\ntable=${t.decl.identifier}:${t.decl.kind}:${t.decl.file}`, h); });
+    ids.map(id => byId.get(id)).map(s => [s.file.replace(/^profiles\//, ''), s.fnv]).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+      .forEach(([name, f]) => { h = fnv(`\nprofile=${name}:${f}`, h); });
+    return hex8(h);
+  }
+
+  const RC_KEY = 'plugins/darkroom/spektrafilm/default_pack';
+  function paintRcLine(hash) {
+    const box = $('#rc');
+    box.hidden = !hash;
+    $('#rc-none').hidden = !!hash || !cat.pack_hash_seed;
+    if (!cat.pack_hash_seed) $('#rc').closest('li').hidden = true;
+    if (hash) $('#rc-line').textContent = `${RC_KEY}=${hash}`;
+  }
+
+  /* pack.json as the download carries it: the tables chosen, the default first and
+     flagged, and the pack's own pack_hash. Everything else stays byte for byte */
+  function packJson(raw, hash) {
+    if (!upsamplingKnown()) return raw;
+    const kv = /^\{"[^"]*": /.test(raw) ? [', ', ': '] : [',', ':'];
+    const obj = o => '{' + Object.entries(o).map(([k, v]) => JSON.stringify(k) + kv[1] + JSON.stringify(v)).join(kv[0]) + '}';
+    const decl = declared().map(t => {
+      const d = { ...t.decl };
+      delete d.default;
+      if (t.file === up.def) d.default = true;
+      return d;
+    });
+    let out = raw;
+    const key = '"spectral_upsampling"' + kv[1] + '[';
+    const a = out.indexOf(key);
+    if (a < 0) throw new Error('pack.json declares no spectral_upsampling tables');
+    const b = out.indexOf(']', a + key.length);
+    out = out.slice(0, a + key.length - 1) + '[' + decl.map(obj).join(kv[0]) + out.slice(b);
+    if (hash) {
+      const m = out.match(/"pack_hash"\s*:\s*"[0-9a-f]{8}"/);
+      if (!m) throw new Error('pack.json carries no pack_hash');
+      out = out.replace(m[0], `"pack_hash"${kv[1]}"${hash}"`);
+    }
+    return out;
+  }
+
+  async function sha256hex(bytes) {
+    const d = await crypto.subtle.digest('SHA-256', bytes);
+    return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
   /* --------------------------------------------------------------- download */
   async function download() {
     const { all } = included();
     const ids = [...all].sort();
+    const hash = packHash(ids);
     const btn = $('#download');
     const bar = $('#tray-progress');
     const fill = bar.querySelector('span');
     const files = [
-      ['pack.json', 'pack.json'], ['spectra_lut.f32', 'spectra_lut.f32'],
+      ['pack.json', 'pack.json'],
+      ...tablesOn().map(t => [t.file, t.file]),
       ...ids.map(id => [byId.get(id).file, byId.get(id).file]),
       ...cat.licenses.map(p => [p, p]),
     ];
@@ -408,19 +506,22 @@
         }
       };
       await Promise.all(Array.from({ length: 6 }, worker));
-      out['spektrafilm/README.txt'] = fflate.strToU8(readme(ids));
-      out['spektrafilm/SHA256SUMS'] = fflate.strToU8(sums(ids));
+      const pj = fflate.strToU8(packJson(fflate.strFromU8(out['spektrafilm/pack.json'][0]), hash));
+      out['spektrafilm/pack.json'][0] = pj;
+      const pjSum = window.crypto && crypto.subtle ? await sha256hex(pj) : null;
+      out['spektrafilm/README.txt'] = fflate.strToU8(readme(ids, hash));
+      out['spektrafilm/SHA256SUMS'] = fflate.strToU8(sums(ids, pjSum));
       setP(0.9, 'Zipping');
       const zipped = await new Promise((res, rej) => fflate.zip(out, { level: 6 }, (err, data) => err ? rej(err) : res(data)));
       const blob = new Blob([zipped], { type: 'application/zip' });
       const a = document.createElement('a');
       const stamp = cat.built_at.slice(0, 10).replace(/-/g, '');
       a.href = URL.createObjectURL(blob);
-      a.download = `spektrafilm-pack-${stamp}-${ids.length}.zip`;
+      a.download = `spektrafilm-pack-${stamp}-${hash || ids.length}.zip`;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 30000);
       setP(1, 'Downloaded');
-      toast(`Downloaded ${a.download} (${mb(blob.size)}). Unzip it into darktable’s data folder, then restart darktable.`);
+      toast(`Downloaded ${a.download} (${mb(blob.size)}). Unzip it into darktable’s data folder, then restart darktable.${hash ? ` Its pack hash is ${hash}.` : ''}`);
     } catch (e) {
       toast(`The pack was not built: ${e.message}. Reload the page and try again; if it keeps failing, the site may be mid-update.`);
       btn.textContent = 'Download pack';
@@ -429,25 +530,32 @@
     }
   }
 
-  function readme(ids) {
+  function readme(ids, hash) {
     const src = cat.sources.map(s => `  ${s.name}: ${s.repo} @ ${s.commit}${s.pack ? ` (pack ${s.pack})` : ''}`).join('\n');
     const rows = ids.map(id => byId.get(id)).map(s =>
       `- ${s.name} (${s.file})\n    ${s.in_base ? "darktable's pack" : 'added from ' + s.source}; ${s.copyright || 'see profile metadata'}${s.approximate ? '\n    approximate: not transcribed from a manufacturer datasheet' : ''}`).join('\n');
     return `spektrafilm data pack for darktable
 ===================================
 
-Built by Lightbox on ${new Date().toISOString().slice(0, 10)} from the catalogue of ${cat.built_at}.
-${ids.length} stocks, pack format ${cat.pack_format}, spektrafilm ${cat.spektrafilm_version}, spectral table ${cat.lut_hash}.
+Built by the Spektrafilm Pack Creator on ${new Date().toISOString().slice(0, 10)} from the catalogue of ${cat.built_at}.
+${ids.length} stocks, pack format ${cat.pack_format}, spektrafilm ${cat.spektrafilm_version}${hash ? `, pack_hash ${hash}` : ''}.
+Spectral upsampling: ${upsamplingKnown() ? declared().map(t => `${t.identifier} (${t.kind}, table ${t.lut_hash}, ${t.file})`).join(', ') + `; new edits start with ${declared()[0].identifier}` : `table ${cat.lut_hash}`}.
 
 INSTALL
 Unzip so this folder lands at
   Linux, macOS:  ~/.local/share/darktable/spektrafilm/
   Windows:       %LOCALAPPDATA%\\darktable\\spektrafilm\\
-Move any pack.json, spectra_lut.f32 and profiles/ already there somewhere safe
+Move any pack.json, spectra_lut*.f32 and profiles/ already there somewhere safe
 first. Leave the packs/ folder alone. Restart darktable. darktable prefers this
 hand-installed pack over the packs it downloads; delete pack.json,
-spectra_lut.f32 and profiles/ to go back.
+spectra_lut*.f32 and profiles/ to go back.
+${hash ? `
+To name this pack as the default for new edits explicitly, close darktable and
+add this line to darktablerc (~/.config/darktable/darktablerc on Linux and
+macOS, %LOCALAPPDATA%\\darktable\\darktablerc on Windows):
 
+  ${RC_KEY}=${hash}
+` : ''}
 SOURCES
 ${src}
 
@@ -458,7 +566,10 @@ were widened to three channels, log-exposure grids were snapped to the pack's
 grid, blackbody illuminants, film render defaults and neutral print filters
 were added for the new stocks, and darktable films whose automatic paper would
 change were pinned to their previous paper. Profiles not listed below were left
-out of this pack. pack.json and spectra_lut.f32 are the merged pack's, unchanged.
+out of this pack. The spectral tables are the base pack's, unchanged. pack.json
+is the merged pack's, with its spectral_upsampling list reduced to the tables
+chosen above and its pack_hash recomputed for exactly these stocks and tables,
+by the recipe of darktable-spektrafilm's tools/spektrafilm_export_data.py.
 
 STOCKS AND CREDITS
 ${rows}
@@ -471,8 +582,9 @@ resold and not used to train commercial AI models.
 `;
   }
 
-  function sums(ids) {
-    const lines = Object.entries(cat.shared_files).map(([n, f]) => `${f.sha256}  ${n}`);
+  function sums(ids, packJsonSum) {
+    const lines = packJsonSum ? [`${packJsonSum}  pack.json`] : [];
+    tablesOn().forEach(t => lines.push(`${t.sha256}  ${t.file}`));
     ids.forEach(id => { const s = byId.get(id); lines.push(`${s.sha256}  ${s.file}`); });
     return lines.join('\n') + '\n';
   }
@@ -498,13 +610,21 @@ resold and not used to train commercial AI models.
       if (e.target.closest('.more')) openDetail(tile.dataset.id);
       else if (e.target.closest('.pick')) toggle(tile.dataset.id);
     });
-    $('#kind-chips').addEventListener('click', e => {
+    $('#groups').addEventListener('change', e => {
+      const tile = e.target.closest('.shelf-tile');
+      if (tile && e.target.matches('.tile-check')) toggle(tile.dataset.id);
+    });
+    $('#kind-segs').addEventListener('click', e => {
       const b = e.target.closest('[data-kind]'); if (!b) return;
       filt.kind = b.dataset.kind; renderGroups();
     });
-    $('#source-chips').addEventListener('click', e => {
+    $('#source-segs').addEventListener('click', e => {
       const b = e.target.closest('[data-source]'); if (!b) return;
       filt.source = b.dataset.source; renderGroups();
+    });
+    $('#scheme-segs').addEventListener('click', e => {
+      const b = e.target.closest('[data-scheme]'); if (!b) return;
+      scheme = b.dataset.scheme; save(); renderGroups();
     });
     let qt;
     $('#q').addEventListener('input', e => { clearTimeout(qt); qt = setTimeout(() => { filt.q = e.target.value.trim(); renderGroups(); }, 120); });
@@ -518,11 +638,23 @@ resold and not used to train commercial AI models.
     $('#copy-link').addEventListener('click', async () => {
       const ids = [...picked];
       const all = ids.length === cat.stocks.length;
-      const url = `${location.origin}${location.pathname}?pick=${all ? 'all' : ids.sort().join(',')}`;
-      try { await navigator.clipboard.writeText(url); toast('Link copied. It opens Lightbox with this selection.'); }
+      let url = `${location.origin}${location.pathname}?pick=${all ? 'all' : ids.sort().join(',')}`;
+      const def = (cat.tables || []).find(t => t.file === up.def);
+      if (upsamplingKnown() && def) url += `&table=${encodeURIComponent(def.identifier)}${up.include.size === 1 ? '&only=1' : ''}`;
+      try { await navigator.clipboard.writeText(url); toast('Link copied. It opens the Spektrafilm Pack Creator with this selection.'); }
       catch (_) { prompt('Copy this link:', url); }
     });
     $('#download').addEventListener('click', download);
+    $('#tables').addEventListener('change', e => {
+      const row = e.target.closest('.module'); if (!row) return;
+      if (e.target.matches('[data-include]')) setTable(row.dataset.file, e.target.checked, false);
+      else if (e.target.matches('[data-default]')) setTable(row.dataset.file, true, true);
+    });
+    $('#rc-copy').addEventListener('click', async () => {
+      const line = $('#rc-line').textContent;
+      try { await navigator.clipboard.writeText(line); toast('Copied. Paste it into darktablerc while darktable is closed.'); }
+      catch (_) { prompt('Copy this line:', line); }
+    });
     $('#detail').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
     document.querySelectorAll('.os-tabs [role=tab]').forEach(tab => tab.addEventListener('click', () => {
       document.querySelectorAll('.os-tabs [role=tab]').forEach(t => t.setAttribute('aria-selected', String(t === tab)));
@@ -553,6 +685,7 @@ resold and not used to train commercial AI models.
     restore();
     renderContact();
     renderSources();
+    renderTables();
     renderGroups();
   }
 
