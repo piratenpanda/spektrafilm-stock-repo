@@ -289,7 +289,9 @@
         ${skipped}</div>`;
     }).join('') + `<div class="src"><h3>This build</h3>
         <p>Pack format ${esc(cat.pack_format)}, spektrafilm ${esc(cat.spektrafilm_version)}${cat.base_pack_hash ? `, base pack <code>${esc(cat.base_pack_hash)}</code>` : ''}, spectral ${(cat.tables || []).length > 1 ? 'tables' : 'table'} ${(cat.tables || []).map(t => `<code>${esc(t.lut_hash || '?')}</code>${t.identifier ? ' ' + esc(t.identifier) : ''}`).join(', ')}. Built ${esc(built.toLocaleString())}.</p>
-        <p><a href="${DATA}build-log.txt">Build log</a>, <a href="${DATA}catalog.json">catalogue JSON</a></p></div>`;
+        <p><a href="${DATA}build-log.txt">Build log</a>, <a href="${DATA}catalog.json">catalogue JSON</a></p></div>
+      <div class="src"><h3>Licences</h3>
+        <p>${cat.licenses.map(l => `<a href="${DATA}pack/${esc(l)}">${esc(l.replace(/^licenses\//, ''))}</a>`).join('<br>')}</p></div>`;
   }
 
   /* ----------------------------------------------------------------- detail */
@@ -471,11 +473,6 @@
     return out;
   }
 
-  async function sha256hex(bytes) {
-    const d = await crypto.subtle.digest('SHA-256', bytes);
-    return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join('');
-  }
-
   /* --------------------------------------------------------------- download */
   async function download() {
     const { all } = included();
@@ -484,109 +481,48 @@
     const btn = $('#download');
     const bar = $('#tray-progress');
     const fill = bar.querySelector('span');
+    // the folder darktable keeps a downloaded pack in: its pack_hash, or its default table's hash
+    const dir = hash || declared()[0].lut_hash;
     const files = [
-      ['pack.json', 'pack.json'],
-      ...tablesOn().map(t => [t.file, t.file]),
-      ...ids.map(id => [byId.get(id).file, byId.get(id).file]),
-      ...cat.licenses.map(p => [p, p]),
+      'pack.json',
+      ...tablesOn().map(t => t.file),
+      ...ids.map(id => byId.get(id).file),
     ];
     btn.disabled = true; bar.hidden = false;
-    const out = {};
+    const out = { 'pack.json': null, profiles: {} };
     let done = 0;
     const setP = (f, label) => { fill.style.width = (f * 100).toFixed(1) + '%'; btn.textContent = label; };
     try {
       const queue = files.slice();
       const worker = async () => {
         while (queue.length) {
-          const [src, dst] = queue.shift();
+          const src = queue.shift();
           const r = await fetch(`${DATA}pack/${src}`, { cache: 'no-cache' });
           if (!r.ok) throw new Error(`${src} answered ${r.status}`);
-          out[`spektrafilm/${dst}`] = [new Uint8Array(await r.arrayBuffer()), { level: dst.endsWith('.f32') ? 1 : 6 }];
+          const entry = [new Uint8Array(await r.arrayBuffer()), { level: src.endsWith('.f32') ? 1 : 6 }];
+          if (src.startsWith('profiles/')) out.profiles[src.slice(9)] = entry;
+          else out[src] = entry;
           done++; setP(done / files.length * 0.85, `Fetching ${done} of ${files.length}`);
         }
       };
       await Promise.all(Array.from({ length: 6 }, worker));
-      const pj = fflate.strToU8(packJson(fflate.strFromU8(out['spektrafilm/pack.json'][0]), hash));
-      out['spektrafilm/pack.json'][0] = pj;
-      const pjSum = window.crypto && crypto.subtle ? await sha256hex(pj) : null;
-      out['spektrafilm/README.txt'] = fflate.strToU8(readme(ids, hash));
-      out['spektrafilm/SHA256SUMS'] = fflate.strToU8(sums(ids, pjSum));
+      out['pack.json'][0] = fflate.strToU8(packJson(fflate.strFromU8(out['pack.json'][0]), hash));
       setP(0.9, 'Zipping');
-      const zipped = await new Promise((res, rej) => fflate.zip(out, { level: 6 }, (err, data) => err ? rej(err) : res(data)));
+      const zipped = await new Promise((res, rej) => fflate.zip({ [dir]: out }, { level: 6 }, (err, data) => err ? rej(err) : res(data)));
       const blob = new Blob([zipped], { type: 'application/zip' });
       const a = document.createElement('a');
-      const stamp = cat.built_at.slice(0, 10).replace(/-/g, '');
       a.href = URL.createObjectURL(blob);
-      a.download = `spektrafilm-pack-${stamp}-${hash || ids.length}.zip`;
+      a.download = `${dir}.zip`;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 30000);
       setP(1, 'Downloaded');
-      toast(`Downloaded ${a.download} (${mb(blob.size)}). Unzip it into darktable’s data folder, then restart darktable.${hash ? ` Its pack hash is ${hash}.` : ''}`);
+      toast(`Downloaded ${a.download} (${mb(blob.size)}). Unzip it into darktable’s spektrafilm/packs folder${hash ? `, set default_pack=${hash}` : ''} and restart darktable.`);
     } catch (e) {
       toast(`The pack was not built: ${e.message}. Reload the page and try again; if it keeps failing, the site may be mid-update.`);
       btn.textContent = 'Download pack';
     } finally {
       setTimeout(() => { bar.hidden = true; fill.style.width = '0'; btn.textContent = 'Download pack'; btn.disabled = false; paintStates(); }, 1600);
     }
-  }
-
-  function readme(ids, hash) {
-    const src = cat.sources.map(s => `  ${s.name}: ${s.repo} @ ${s.commit}${s.pack ? ` (pack ${s.pack})` : ''}`).join('\n');
-    const rows = ids.map(id => byId.get(id)).map(s =>
-      `- ${s.name} (${s.file})\n    ${s.in_base ? "darktable's pack" : 'added from ' + s.source}; ${s.copyright || 'see profile metadata'}${s.approximate ? '\n    approximate: not transcribed from a manufacturer datasheet' : ''}`).join('\n');
-    return `spektrafilm data pack for darktable
-===================================
-
-Built by the Spektrafilm Pack Creator on ${new Date().toISOString().slice(0, 10)} from the catalogue of ${cat.built_at}.
-${ids.length} stocks, pack format ${cat.pack_format}, spektrafilm ${cat.spektrafilm_version}${hash ? `, pack_hash ${hash}` : ''}.
-Spectral upsampling: ${upsamplingKnown() ? declared().map(t => `${t.identifier} (${t.kind}, table ${t.lut_hash}, ${t.file})`).join(', ') + `; new edits start with ${declared()[0].identifier}` : `table ${cat.lut_hash}`}.
-
-INSTALL
-Unzip so this folder lands at
-  Linux, macOS:  ~/.local/share/darktable/spektrafilm/
-  Windows:       %LOCALAPPDATA%\\darktable\\spektrafilm\\
-Move any pack.json, spectra_lut*.f32 and profiles/ already there somewhere safe
-first. Leave the packs/ folder alone. Restart darktable. darktable prefers this
-hand-installed pack over the packs it downloads; delete pack.json,
-spectra_lut*.f32 and profiles/ to go back.
-${hash ? `
-To name this pack as the default for new edits explicitly, close darktable and
-add this line to darktablerc (~/.config/darktable/darktablerc on Linux and
-macOS, %LOCALAPPDATA%\\darktable\\darktablerc on Windows):
-
-  ${RC_KEY}=${hash}
-` : ''}
-SOURCES
-${src}
-
-CHANGES (CC BY-SA 4.0 asks that modifications are noted)
-darktable's pack was extended with negs_to_darktable_pack.py: profiles darktable
-lacks were added from the extension repositories, single-channel B&W profiles
-were widened to three channels, log-exposure grids were snapped to the pack's
-grid, blackbody illuminants, film render defaults and neutral print filters
-were added for the new stocks, and darktable films whose automatic paper would
-change were pinned to their previous paper. Profiles not listed below were left
-out of this pack. The spectral tables are the base pack's, unchanged. pack.json
-is the merged pack's, with its spectral_upsampling list reduced to the tables
-chosen above and its pack_hash recomputed for exactly these stocks and tables,
-by the recipe of darktable-spektrafilm's tools/spektrafilm_export_data.py.
-
-STOCKS AND CREDITS
-${rows}
-
-LICENCE
-The profiles are licensed under CC BY-SA 4.0; full texts and notices are in
-licenses/. Credit the authors above, keep the licence and note your changes if
-you share or adapt this pack. The spektrafilm author asks that the data is not
-resold and not used to train commercial AI models.
-`;
-  }
-
-  function sums(ids, packJsonSum) {
-    const lines = packJsonSum ? [`${packJsonSum}  pack.json`] : [];
-    tablesOn().forEach(t => lines.push(`${t.sha256}  ${t.file}`));
-    ids.forEach(id => { const s = byId.get(id); lines.push(`${s.sha256}  ${s.file}`); });
-    return lines.join('\n') + '\n';
   }
 
   /* ------------------------------------------------------------------ misc */

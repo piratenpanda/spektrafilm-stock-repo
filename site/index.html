@@ -90,19 +90,19 @@
   <section class="section install" id="install" aria-labelledby="install-h">
     <h2 id="install-h">Install</h2>
     <div class="section-body">
-    <p class="note">darktable prefers a pack you install by hand over the ones it downloads, so this pack takes over as soon as darktable restarts.</p>
+    <p class="note">The pack installs beside the packs darktable downloads, in a folder named after its pack hash, and one line in darktablerc makes it the pack new edits use. Edits that already record a pack keep theirs.</p>
     <div class="os-tabs" role="tablist" aria-label="Operating system">
       <button role="tab" id="tab-linux" aria-selected="true" aria-controls="os-panel" data-os="linux">Linux</button>
       <button role="tab" id="tab-mac" aria-selected="false" aria-controls="os-panel" data-os="mac">macOS</button>
       <button role="tab" id="tab-win" aria-selected="false" aria-controls="os-panel" data-os="win">Windows</button>
     </div>
     <ol class="steps" id="os-panel" role="tabpanel">
-      <li><h3>Download the pack</h3><p>Pick your stocks above and press Download pack. You get one zip with a <code>spektrafilm</code> folder inside.</p></li>
-      <li><h3>Put the folder in darktable’s data folder</h3><p>Unzip into <code class="os-path" data-linux="~/.local/share/darktable/" data-mac="~/.local/share/darktable/" data-win="%LOCALAPPDATA%\darktable\">~/.local/share/darktable/</code> so you end up with <code class="os-path" data-linux="~/.local/share/darktable/spektrafilm/pack.json" data-mac="~/.local/share/darktable/spektrafilm/pack.json" data-win="%LOCALAPPDATA%\darktable\spektrafilm\pack.json">~/.local/share/darktable/spektrafilm/pack.json</code>. If a <code>spektrafilm</code> folder with a <code>pack.json</code> is already there, move its <code>pack.json</code>, <code>spectra_lut*.f32</code> and <code>profiles</code> somewhere safe first. Leave the <code>packs</code> folder alone: it holds darktable’s downloads.</p></li>
-      <li><h3>Restart darktable</h3><p>Open the spektrafilm module. Your stocks are in the film and paper lists, and the tables you chose in its spectral upsampling list. To go back to darktable’s own pack, delete <code>pack.json</code>, the <code>spectra_lut*.f32</code> files and <code>profiles</code> from that folder and restart.</p></li>
-      <li><h3>Make it the default pack</h3><p>New edits already use the pack you install by hand. To name it explicitly, for example while other packs are installed beside it, close darktable and add this line to <code class="os-path" data-linux="~/.config/darktable/darktablerc" data-mac="~/.config/darktable/darktablerc" data-win="%LOCALAPPDATA%\darktable\darktablerc">~/.config/darktable/darktablerc</code>. The hash is this pack’s own and follows your selection.</p>
+      <li><h3>Download the pack</h3><p>Pick your stocks and tables above and press Download pack. You get <code>&lt;pack hash&gt;.zip</code> with one folder of the same name inside, holding <code>pack.json</code>, the spectral tables and <code>profiles</code>.</p></li>
+      <li><h3>Unzip it into darktable’s packs folder</h3><p>Unzip into <code class="os-path" data-linux="~/.local/share/darktable/spektrafilm/packs/" data-mac="~/.local/share/darktable/spektrafilm/packs/" data-win="%LOCALAPPDATA%\darktable\spektrafilm\packs\">~/.local/share/darktable/spektrafilm/packs/</code> so you end up with <code class="os-path" data-linux="packs/&lt;pack hash&gt;/pack.json" data-mac="packs/&lt;pack hash&gt;/pack.json" data-win="packs\&lt;pack hash&gt;\pack.json">packs/&lt;pack hash&gt;/pack.json</code>. Keep the folder name: darktable checks it against the pack hash inside. Nothing else in that folder needs to move.</p></li>
+      <li><h3>Make it the default pack</h3><p>Close darktable, then add this line to <code class="os-path" data-linux="~/.config/darktable/darktablerc" data-mac="~/.config/darktable/darktablerc" data-win="%LOCALAPPDATA%\darktable\darktablerc">~/.config/darktable/darktablerc</code>. The hash is this pack’s own and follows your selection. To go back, delete the line.</p>
         <div class="rc" id="rc" hidden><code id="rc-line"></code><button type="button" class="button small" id="rc-copy">Copy</button></div>
         <p class="rc-none" id="rc-none">Select at least one film to get the line.</p></li>
+      <li><h3>Start darktable</h3><p>Open the spektrafilm module. Your stocks are in the film and paper lists, and the tables you chose in its spectral upsampling list.</p></li>
     </ol>
     </div>
   </section>
@@ -121,7 +121,7 @@
     <details><summary>Why are some papers added on their own?</summary>
       <p>darktable prints every film on a paper. Each film names one, or darktable picks the first suitable paper in the pack. The pack creator always includes the paper each selected film would use with the whole catalogue, so a smaller pack renders the same as the full one.</p></details>
     <details><summary>Can I share or sell the pack?</summary>
-      <p>The profiles are CC BY-SA 4.0. You can share and adapt them if you credit the authors, keep the licence and note your changes; the zip carries the licences and a credit list for exactly what you picked. The spektrafilm author asks that the data is not resold.</p></details>
+      <p>The profiles are CC BY-SA 4.0. You can share and adapt them if you credit the authors, keep the licence and note your changes; every profile in the zip carries its author and licence in its <code>metadata</code> block, and the full licence texts are linked under <a href="#sources">Sources</a>. Pass those on if you share the pack. The spektrafilm author asks that the data is not resold.</p></details>
     <details><summary>Which spectral upsampling table should I pick?</summary>
       <p><code>hanatos2025</code> is the table darktable’s pack has always shipped and the one every existing edit was made with. <code>arctic2026beta04</code> is a reflectance table recovered under D65, and a beta: it renders differently, not better. Keep both in the pack to switch per edit in the module. Making arctic the table new edits start with also changes edits that never chose a table, and darktable then warns that they were developed with a different one.</p></details>
     </div>

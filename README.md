@@ -33,9 +33,12 @@ sources.json ──► tools/build.py ──► site/data/ ──► GitHub Page
    - `build-log.txt` the merge script's full output
 4. The page (`site/index.html`, `app.js`, `style.css`) reads the catalogue.
    On download it fetches the chosen profiles, `pack.json` and the chosen
-   spectral tables, adds any paper a chosen film prints on, and zips a
-   `spektrafilm/` folder with a README (install paths, sources, changes,
-   credits) and `SHA256SUMS`. fflate is vendored in `site/vendor/`; the IBM
+   spectral tables, adds any paper a chosen film prints on, and zips them as
+   `<pack_hash>.zip` holding one `<pack_hash>/` folder with `pack.json`, the
+   tables and `profiles/`: the layout of a pack darktable downloads, to be
+   unzipped into `<user data>/darktable/spektrafilm/packs/` and picked with
+   `default_pack`. Each profile carries its copyright and licence notice in
+   its `metadata` block. fflate is vendored in `site/vendor/`; the IBM
    Plex fonts come from Google Fonts.
 
 ## Spectral upsampling and pack identity
@@ -104,8 +107,9 @@ hash or its spektrafilm version.
 
 The film data is CC BY-SA 4.0: spektrafilm by Andrea Volpato, Fotufilm
 profiles by MUAStudio Inc., Negs preparations by Noah Haasis, packaged for
-darktable by the darktable project. Every downloaded pack carries the licence
-texts, a credit line for each chosen stock and a note of the changes made.
+darktable by the darktable project. Every profile in a downloaded pack carries its own
+copyright and licence notice; the licence texts, sources and changes are
+linked from the page.
 fflate is MIT (`site/vendor/fflate-LICENSE.txt`).
 
 The page design and the film box covers (`site/covers.js`, `site/style.css`)
