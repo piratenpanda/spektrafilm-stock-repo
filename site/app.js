@@ -536,15 +536,17 @@
 
   function wire() {
     $('#groups').addEventListener('click', e => {
-      const tile = e.target.closest('.tile');
+      const tile = e.target.closest('.shelf-tile');
       const g = e.target.closest('[data-group]');
       if (g) {
         cat.stocks.filter(s => s.kind === g.dataset.group && matches(s)).forEach(s => picked.add(s.stock));
         save(); paintStates(); return;
       }
       if (!tile) return;
+      // the checkbox toggles through its change event; Details opens the dialog;
+      // a click anywhere else on the card toggles the stock
       if (e.target.closest('.more')) openDetail(tile.dataset.id);
-      else if (e.target.closest('.pick')) toggle(tile.dataset.id);
+      else if (!e.target.closest('.tile-check')) toggle(tile.dataset.id);
     });
     $('#groups').addEventListener('change', e => {
       const tile = e.target.closest('.shelf-tile');

@@ -122,7 +122,8 @@ h1 { font-size: clamp(40px, 6.4vw, 80px); letter-spacing: -.015em; line-height: 
 .shelf-label:first-child { border-top: 0; padding-top: 0; }
 .shelf-label .n { font-family: var(--mono); font-weight: 400; letter-spacing: 0; margin-left: 4px; }
 .shelf-label .link-btn { font-size: 12px; letter-spacing: 0; text-transform: none; }
-.shelf-tile { position: relative; display: flex; flex-direction: column; align-items: center; min-width: 0; min-height: 150px; padding: 16px 4px 10px; border: 1px solid transparent; }
+.shelf-tile { position: relative; display: flex; flex-direction: column; align-items: center; min-width: 0; min-height: 150px; padding: 16px 4px 10px; border: 1px solid transparent; cursor: pointer; user-select: none; }
+@media (hover: hover) { .shelf-tile:not([data-checked]):hover { background: color-mix(in srgb, var(--selected) 55%, var(--paper)); } }
 .shelf-tile[data-checked] { background: var(--selected); }
 .shelf-tile.required { border: 1px dashed var(--accent); }
 .tile-check { position: absolute; top: 6px; right: 6px; z-index: 1; width: 18px; height: 18px; margin: 0; accent-color: var(--accent); cursor: pointer; }
