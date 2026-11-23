@@ -255,20 +255,11 @@
       `<button type="button" class="seg" data-scheme="${k}" aria-pressed="${scheme === k}">${esc(label)}</button>`).join('');
   }
 
-  function renderContact() {
-    // negatives first: the orange mask is the most recognisable sight on a light table
-    const order = KINDS.map(k => k[0]);
-    const films = cat.stocks.filter(s => s.stage === 'filming')
-      .sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
-    $('#contact-strip').innerHTML = films.map((s, i) => {
-      const grad = `linear-gradient(90deg, ${s.wedge.map((c, j) => `${c} ${Math.round(j / (s.wedge.length - 1) * 100)}%`).join(', ')})`;
-      return `<a class="cframe" href="#s-${esc(s.stock)}" style="--rb:${s.rebate};--ep:${s.wedge[s.wedge.length - 1]}" title="${esc(s.name)}">
-        <span class="sp"></span><span class="img" style="background:${grad}"></span>
-        <span class="ep">${esc(s.brand)} ${esc(s.model)} ${i + 1}</span></a>`;
-    }).join('');
+  function renderLede() {
+    const films = cat.stocks.filter(s => s.stage === 'filming');
     const nFilm = films.length;
     const ext = cat.sources.filter(s => s.role === 'extension').map(s => s.name);
-    $('#lede').textContent = `${nFilm} films and ${cat.stocks.length - nFilm} print stocks from darktable${ext.length ? ' and ' + ext.join(' and ') : ''}, pulled from git every night. Pick the stocks you want and download a pack darktable’s spektrafilm module reads as it is.`;
+    $('#lede').textContent = `${nFilm} films and ${cat.stocks.length - nFilm} print stocks from darktable${ext.length ? ' and ' + ext.join(' and ') : ''}, pulled from git every night. Pick the stocks and the spectral upsampling tables you want and download a pack darktable’s spektrafilm module reads as it is.`;
   }
 
   function renderSources() {
@@ -621,7 +612,7 @@
     byId = new Map(cat.stocks.map(s => [s.stock, s]));
     baseline = cat.stocks.map(s => s.first_seen).sort()[0];
     restore();
-    renderContact();
+    renderLede();
     renderSources();
     renderTables();
     renderGroups();
