@@ -1,0 +1,15 @@
+{
+  "base": {
+    "name": "darktable",
+    "repo": "https://github.com/darktable-org/darktable-spektrafilm",
+    "ref": "main",
+    "pack": null
+  },
+  "extensions": [
+    {
+      "name": "Negs",
+      "repo": "https://github.com/noahhaasis/negs",
+      "ref": "main"
+    }
+  ]
+}
