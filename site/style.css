@@ -1,18 +1,23 @@
 /* Spektrafilm Pack Creator. The look follows GRKit's film look picker (https://github.com/ahonn/grkit,
    web/src/styles.css), MIT License, Copyright (c) 2026 ahonn; see vendor/grkit-LICENSE.txt.
-   Paper, ink, hairlines and one red; square controls; IBM Plex type. */
+   Colours from analog film and spektrafilm's own banner and GUI: warm print-paper
+   white, cyan-black ink, a light-leak orange accent, the orange film-base mask for
+   selected stocks and the cyan, magenta and yellow dyes in a strip under the header.
+   Square controls; IBM Plex type. */
 :root {
   color-scheme: light;
-  --ink: #0b0b0b;
-  --ink-2: #2b2b2b;
-  --muted: #545454;
-  --line: #d4d4d4;
-  --paper: #ffffff;
-  --accent: #cf142b;
-  --selected: #fcf1f2;
-  --warning: #a3111f;
-  --code: #f2f2f2;
-  --tray: rgba(255, 255, 255, .94);
+  --ink: #10202a;
+  --ink-2: #2b3a44;
+  --muted: #56636c;
+  --line: #ddd3c4;
+  --paper: #f7f2ea;
+  --accent: #b8381a;
+  --on-accent: #ffffff;
+  --selected: #f6e1cf;
+  --warning: #a8331a;
+  --code: #ede5d8;
+  --tray: rgba(247, 242, 234, .94);
+  --dye-c: #1aa6b7; --dye-m: #d6457f; --dye-y: #f2b51d;
   --r: #cf3b3b; --g: #2b9457; --b: #2f68d0;
   --body: "IBM Plex Sans", system-ui, sans-serif;
   --display: "IBM Plex Sans Condensed", "Arial Narrow", sans-serif;
@@ -23,9 +28,9 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --ink: #f2f2f2; --ink-2: #d6d6d6; --muted: #a3a3a3; --line: #3a3a3a; --paper: #121212;
-    --accent: #ff4d5e; --selected: #2a1619; --warning: #ff7a86; --code: #222;
-    --tray: rgba(18, 18, 18, .94);
+    --ink: #f1ebe3; --ink-2: #cfc6bb; --muted: #98a2a8; --line: #283238; --paper: #0d151a;
+    --accent: #ff8a5c; --on-accent: #0d151a; --selected: #2b1b15; --warning: #ff9a70; --code: #1a2329;
+    --tray: rgba(13, 21, 26, .94);
     --r: #ff6b6b; --g: #4cc47e; --b: #6b9cff;
   }
 }
@@ -45,6 +50,7 @@ p { margin: 0; }
 /* header */
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--paper); }
 .top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 9; display: flex; align-items: center; gap: 28px; padding: 12px clamp(16px, 4vw, 56px); background: var(--paper); border-bottom: 1px solid var(--line); }
+.top::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; background: linear-gradient(90deg, var(--dye-c) 0 33.34%, var(--dye-m) 0 66.67%, var(--dye-y) 0); }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font: 700 20px var(--display); }
 .brand-mark { width: 30px; height: 19px; }
 .brand-mark > rect { fill: var(--accent); }
@@ -62,7 +68,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .button.small { min-height: 34px; padding: 0 12px; font-size: 13px; }
 .btn-primary, .download-btn { background: var(--ink); color: var(--paper); }
 .btn:hover, .button:hover { background: var(--selected); color: var(--ink); }
-.btn-primary:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .btn[disabled] { background: var(--line); border-color: var(--line); color: var(--muted); cursor: not-allowed; }
 .link-btn { background: none; border: 0; padding: 2px 0; font-size: 13px; color: var(--muted); cursor: pointer; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: .25em; }
 .link-btn:hover { color: var(--accent); text-decoration-color: currentColor; }
@@ -203,7 +209,7 @@ h1 { font-size: clamp(40px, 6.4vw, 80px); letter-spacing: -.015em; line-height: 
 
 /* detail dialog */
 dialog { width: min(760px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); border: 1px solid var(--ink); border-radius: 0; background: var(--paper); color: var(--ink); padding: 0; box-shadow: 0 30px 80px -30px rgba(0,0,0,.5); }
-dialog::backdrop { background: rgba(10, 10, 10, .45); }
+dialog::backdrop { background: rgba(8, 16, 21, .5); }
 dialog[open] { animation: rise .2s cubic-bezier(.2, .8, .3, 1); }
 @keyframes rise { from { transform: translateY(12px); opacity: 0; } }
 .d-close { position: sticky; top: 10px; height: 0; display: flex; justify-content: flex-end; margin: 0 10px; z-index: 2; }
