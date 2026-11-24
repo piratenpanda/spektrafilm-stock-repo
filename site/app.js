@@ -250,13 +250,6 @@
       `<button type="button" class="seg" data-source="${esc(k)}" aria-pressed="${filt.source === k}">${esc(label)}</button>`).join('');
   }
 
-  function renderLede() {
-    const films = cat.stocks.filter(s => s.stage === 'filming');
-    const nFilm = films.length;
-    const ext = cat.sources.filter(s => s.role === 'extension').map(s => s.name);
-    $('#lede').textContent = `${nFilm} films and ${cat.stocks.length - nFilm} print stocks from darktable${ext.length ? ' and ' + ext.join(' and ') : ''}, pulled from git every night. Pick the stocks and the spectral upsampling tables you want and download a pack darktable’s spektrafilm module reads as it is.`;
-  }
-
   function renderSources() {
     const built = new Date(cat.built_at);
     const days = (Date.now() - built) / 864e5;
@@ -580,11 +573,6 @@
       document.querySelectorAll('.os-tabs [role=tab]').forEach(t => t.setAttribute('aria-selected', String(t === tab)));
       document.querySelectorAll('.os-path').forEach(c => { c.textContent = c.dataset[tab.dataset.os]; });
     }));
-    // keep the tray out of the way while the hero's own buttons are on screen
-    const tray = $('#tray');
-    tray.classList.add('away');
-    new IntersectionObserver(([e]) => tray.classList.toggle('away', e.isIntersecting))
-      .observe($('.hero-actions'));
     if (/Win/.test(navigator.platform)) $('#tab-win').click();
     else if (/Mac/.test(navigator.platform)) $('#tab-mac').click();
   }
@@ -603,7 +591,6 @@
     byId = new Map(cat.stocks.map(s => [s.stock, s]));
     baseline = cat.stocks.map(s => s.first_seen).sort()[0];
     restore();
-    renderLede();
     renderSources();
     renderTables();
     renderGroups();
