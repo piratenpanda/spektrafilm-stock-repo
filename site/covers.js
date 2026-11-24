@@ -4,7 +4,7 @@
    web/src/components/EffectIcon.tsx at c0ddbfbf), MIT License, Copyright (c) 2026 ahonn.
    The full licence text is in vendor/grkit-LICENSE.txt.
 
-   A cover is { template, brand, name, number, band, mono }. `box` has a top brand band,
+   A cover is { template, brand, name, number, band }. `box` has a top brand band,
    `cine` a top band and three bottom stripes, `stack` a bottom brand band. Colours are
    curated inks combined into named looks; a stock gets the look its name or brand matches,
    or the gray look. */
@@ -80,12 +80,8 @@
     return 'gray';
   }
 
-  /* scheme: 'gray' draws every cover gray, 'color' gives film box colours to colour stocks
-     only, 'all' to every stock. A cine cover stays on its cinema look under 'gray'. */
-  function colours(cover, scheme) {
-    let look = lookOf(cover);
-    if (scheme === 'gray' || (scheme === 'color' && cover.mono)) look = cover.template === 'cine' ? 'cinema' : 'gray';
-    const slots = LOOKS[look];
+  function colours(cover) {
+    const slots = LOOKS[lookOf(cover)];
     const c = {};
     for (const k of Object.keys(slots)) c[k] = `rgb(${INKS[slots[k]].join(' ')})`;
     return c;
@@ -114,7 +110,6 @@
       name: name || number,
       number: name ? number : '',
       band: !cine && s.kind !== 'paper' && s.channel_model !== 'bw',
-      mono: s.channel_model === 'bw',
     };
   }
 
@@ -122,8 +117,8 @@
   const text = (cls, x, y, width, fill, value, extra = '') =>
     `<text class="${cls}" x="${x}" y="${y}" data-width="${width}"${extra} fill="${fill}">${esc(value)}</text>`;
 
-  function svg(cover, scheme) {
-    const c = colours(cover, scheme);
+  function svg(cover) {
+    const c = colours(cover);
     let body;
     if (cover.template === 'stack') {
       const footer = 28, center = (3 + footer) / 2;

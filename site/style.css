@@ -98,7 +98,6 @@ h1 { font-size: clamp(40px, 6.4vw, 80px); letter-spacing: -.015em; line-height: 
 .shelf-count { font-size: 16px; }
 .shelf-count .count { font-family: var(--mono); font-weight: 500; color: var(--accent); }
 .shelf-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
-.cover-scheme { display: inline-flex; align-items: center; gap: 8px; margin-right: 4px; font-size: 13px; color: var(--ink-2); }
 .shelf-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
 .search { display: flex; align-items: center; gap: 8px; border: 1px solid var(--ink); padding: 0 10px; min-width: min(280px, 100%); flex: 0 1 320px; }
 .search svg { width: 16px; height: 16px; fill: none; stroke: var(--muted); stroke-width: 1.6; flex: none; }

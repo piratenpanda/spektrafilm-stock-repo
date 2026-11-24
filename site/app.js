@@ -17,7 +17,6 @@
   const KIND_NAME = Object.fromEntries(KINDS);
   const FILTER_KINDS = [['all', 'All'], ['color', 'Color'], ['bw', 'B&W'], ['print', 'Print']];
   const KIND_FILTER = { negative: 'color', cine: 'color', slide: 'color', bw: 'bw', paper: 'print', 'print-film': 'print' };
-  const SCHEMES = [['gray', 'Off'], ['color', 'Color'], ['all', 'All']];
   const NEW_DAYS = 21;
 
   const $ = (s, el = document) => el.querySelector(s);
@@ -29,7 +28,6 @@
   let byId = new Map();
   const picked = new Set();
   const filt = { kind: 'all', source: 'all', q: '', hideApprox: false };
-  let scheme = 'all';
   // spectral upsampling: the files of the tables put in the pack, and the one new edits start with
   const up = { include: new Set(), def: null };
 
@@ -38,7 +36,7 @@
     try {
       localStorage.setItem(STORE, JSON.stringify({
         pick: [...picked], known: cat.stocks.map(s => s.stock),
-        scheme, tables: [...up.include], table_default: up.def,
+        tables: [...up.include], table_default: up.def,
       }));
     } catch (_) { /* private mode: the page still works */ }
   }
@@ -66,7 +64,6 @@
   function restore() {
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem(STORE) || 'null'); } catch (_) { saved = null; }
-    if (saved && SCHEMES.some(([k]) => k === saved.scheme)) scheme = saved.scheme;
     restoreTables(saved);
     const url = new URLSearchParams(location.search).get('pick');
     if (url) {
@@ -143,7 +140,7 @@
     return `<div class="shelf-tile" data-id="${esc(s.stock)}" id="s-${esc(s.stock)}">
       <input type="checkbox" class="tile-check" aria-label="Add ${esc(s.name)} to the pack">
       <button type="button" class="tile-body pick" aria-hidden="true" tabindex="-1">
-        ${Covers.svg(Covers.coverOf(s), scheme)}
+        ${Covers.svg(Covers.coverOf(s))}
         <span class="wedge" style="--rb:${s.rebate}">${wedge}</span>
         <span class="tile-name">${esc(s.model.replace(/\s*\((experimental)\)\s*/i, ' ').trim())}</span>
       </button>
@@ -251,8 +248,6 @@
       ...cat.sources.filter(s => s.role === 'extension').map(s => [s.name, `Added from ${s.name}`])];
     $('#source-segs').innerHTML = sources.map(([k, label]) =>
       `<button type="button" class="seg" data-source="${esc(k)}" aria-pressed="${filt.source === k}">${esc(label)}</button>`).join('');
-    $('#scheme-segs').innerHTML = SCHEMES.map(([k, label]) =>
-      `<button type="button" class="seg" data-scheme="${k}" aria-pressed="${scheme === k}">${esc(label)}</button>`).join('');
   }
 
   function renderLede() {
@@ -550,10 +545,6 @@
     $('#source-segs').addEventListener('click', e => {
       const b = e.target.closest('[data-source]'); if (!b) return;
       filt.source = b.dataset.source; renderGroups();
-    });
-    $('#scheme-segs').addEventListener('click', e => {
-      const b = e.target.closest('[data-scheme]'); if (!b) return;
-      scheme = b.dataset.scheme; save(); renderGroups();
     });
     let qt;
     $('#q').addEventListener('input', e => { clearTimeout(qt); qt = setTimeout(() => { filt.q = e.target.value.trim(); renderGroups(); }, 120); });
