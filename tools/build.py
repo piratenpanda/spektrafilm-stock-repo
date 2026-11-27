@@ -102,6 +102,19 @@ def pick_base_pack(repo_dir, want):
         entry = chosen[0]
     else:
         entry = next((p for p in packs if p.get('default')), packs[-1])
+    # A pack built here is installed under packs/ and named for its pack_hash,
+    # which darktable reads back from pack.json. A base without one gives the
+    # page nothing to compute that hash from: the download would fall back to
+    # the default table's hash, land in the very directory darktable downloads
+    # the published base pack into, and -- since darktable#23253 records a
+    # pack without pack_hash as published by its table hash -- be taken for
+    # that published pack, built-in looks and all, by every edit that recorded
+    # its table. So only a pack_format 3 base with its own pack_hash will do.
+    if entry.get('pack_format', 2) < 3 or not entry.get('pack_hash'):
+        sys.exit(f"base pack {entry['base']} is pack_format {entry.get('pack_format', 2)}"
+                 f"{' with no pack_hash' if not entry.get('pack_hash') else ''}: a pack built "
+                 f"from it would have no identity of its own and would pass for the "
+                 f"published one. Pick a pack_format 3 base that declares a pack_hash")
     pack_dir = repo_dir / entry['base']
     for f in entry['files']:
         p = pack_dir / f['path']
@@ -475,6 +488,9 @@ def main():
         full = pack_hash(seed, pack['spectral_upsampling'],
                          {p.name: p.read_bytes() for p in (pack_out / 'profiles').glob('*.json')})
         log(f"pack_hash recipe reproduces the base pack's {got}; the full merged pack is {full}")
+    else:
+        sys.exit("the merged pack.json lost its pack_format 3 or pack_hash, so the page "
+                 "could not give a download an identity of its own")
 
     catalog = {
         'format': 1,

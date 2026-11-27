@@ -37,7 +37,11 @@ sources.json ──► tools/build.py ──► site/data/ ──► GitHub Page
    `<pack_hash>.zip` holding one `<pack_hash>/` folder with `pack.json`, the
    tables and `profiles/`: the layout of a pack darktable downloads, to be
    unzipped into `<user data>/darktable/spektrafilm/packs/` and picked with
-   `default_pack`. Each profile carries its copyright and licence notice in
+   `default_pack`. Since darktable#23253 that line is required: darktable uses a
+   pack under `packs/` that its data repository's manifest does not list only
+   while `default_pack` names it, and offers its built-in looks only on a
+   published pack. An edit made with a pack from here keeps finding it by its
+   `pack_hash` after `default_pack` moves on, as long as the folder stays. Each profile carries its copyright and licence notice in
    its `metadata` block. fflate is vendored in `site/vendor/`; the IBM
    Plex fonts come from Google Fonts.
 
@@ -62,6 +66,13 @@ copy:
 ```
 plugins/darkroom/spektrafilm/default_pack=<pack_hash>
 ```
+
+The base pack must therefore be pack format 3 and declare a `pack_hash`, and
+`build.py` stops if it does not. A pack built from a base without one could
+only be named for its spectral table: it would unzip into the directory
+darktable downloads the published pack with that table into, and darktable,
+which publishes such a pack by its table hash, would take the subset for the
+published pack.
 
 If the clone, the manifest check or the merge fails, the build exits non-zero,
 nothing is deployed and the site keeps serving the last good build.
@@ -100,8 +111,9 @@ reads it: `data/profiles/*.json`, `data/presets/couplers.toml`,
 `data/presets/grain.toml` and `data/filters/neutral_print_filters.json`. Any
 `data/*LICENSE*.txt` and `data/CHANGELOG.txt` are shipped in the pack's
 `licenses/` folder. To pin darktable's base pack instead of using the
-manifest's default, set `base.pack` to its path (`packs/0.3.3`), its table
-hash or its spektrafilm version.
+manifest's default, set `base.pack` to its path (`packs/0.3.4`), its
+`pack_hash` or its spektrafilm version. It has to be a pack format 3 pack with
+a `pack_hash`, so not `packs/0.3.3`.
 
 ## Licences
 

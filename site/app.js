@@ -429,7 +429,6 @@
   /* pack.json as the download carries it: the tables chosen, the default first and
      flagged, and the pack's own pack_hash. Everything else stays byte for byte */
   function packJson(raw, hash) {
-    if (!upsamplingKnown()) return raw;
     const kv = /^\{"[^"]*": /.test(raw) ? [', ', ': '] : [',', ':'];
     const obj = o => '{' + Object.entries(o).map(([k, v]) => JSON.stringify(k) + kv[1] + JSON.stringify(v)).join(kv[0]) + '}';
     const decl = declared().map(t => {
@@ -439,17 +438,19 @@
       return d;
     });
     let out = raw;
-    const key = '"spectral_upsampling"' + kv[1] + '[';
-    const a = out.indexOf(key);
-    if (a < 0) throw new Error('pack.json declares no spectral_upsampling tables');
-    const b = out.indexOf(']', a + key.length);
-    out = out.slice(0, a + key.length - 1) + '[' + decl.map(obj).join(kv[0]) + out.slice(b);
-    if (hash) {
-      const m = out.match(/"pack_hash"\s*:\s*"[0-9a-f]{8}"/);
-      if (!m) throw new Error('pack.json carries no pack_hash');
-      out = out.replace(m[0], `"pack_hash"${kv[1]}"${hash}"`);
+    if (upsamplingKnown()) {
+      const key = '"spectral_upsampling"' + kv[1] + '[';
+      const a = out.indexOf(key);
+      if (a < 0) throw new Error('pack.json declares no spectral_upsampling tables');
+      const b = out.indexOf(']', a + key.length);
+      out = out.slice(0, a + key.length - 1) + '[' + decl.map(obj).join(kv[0]) + out.slice(b);
     }
-    return out;
+    // Always this selection's own hash. Leaving the base pack's in place would
+    // make a subset of it claim the base's identity, which darktable treats as
+    // published and would hand to every edit that recorded that pack.
+    const m = out.match(/"pack_hash"\s*:\s*"[0-9a-f]{8}"/);
+    if (!m) throw new Error('pack.json carries no pack_hash');
+    return out.replace(m[0], `"pack_hash"${kv[1]}"${hash}"`);
   }
 
   /* --------------------------------------------------------------- download */
@@ -457,11 +458,18 @@
     const { all } = included();
     const ids = [...all].sort();
     const hash = packHash(ids);
+    // Without a hash of its own the pack could only be named for its table and
+    // would pass for darktable's published pack carrying that table (darktable
+    // #23253); build.py refuses such a base, so this is only a stale catalogue
+    if (!hash) {
+      toast('This catalogue gives the pack no identity of its own, so it cannot be built safely. Reload the page; if it persists, the site is mid-update.');
+      return;
+    }
     const btn = $('#download');
     const bar = $('#tray-progress');
     const fill = bar.querySelector('span');
-    // the folder darktable keeps a downloaded pack in: its pack_hash, or its default table's hash
-    const dir = hash || declared()[0].lut_hash;
+    // the folder darktable keeps a downloaded pack in: its pack_hash
+    const dir = hash;
     const files = [
       'pack.json',
       ...tablesOn().map(t => t.file),
@@ -495,7 +503,7 @@
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 30000);
       setP(1, 'Downloaded');
-      toast(`Downloaded ${a.download} (${mb(blob.size)}). Unzip it into darktable’s spektrafilm/packs folder${hash ? `, set default_pack=${hash}` : ''} and restart darktable.`);
+      toast(`Downloaded ${a.download} (${mb(blob.size)}). Unzip it into darktable’s spektrafilm/packs folder, set default_pack=${hash} and restart darktable.`);
     } catch (e) {
       toast(`The pack was not built: ${e.message}. Reload the page and try again; if it keeps failing, the site may be mid-update.`);
       btn.textContent = 'Download pack';
