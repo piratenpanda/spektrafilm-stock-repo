@@ -228,8 +228,9 @@
     const w = $('#tray-warn');
     if (missingBase.length && films.length) {
       w.hidden = false;
-      const it = missingBase.length === 1 ? 'it' : 'them';
-      w.textContent = `Leaves out ${missingBase.length} of darktable’s own stocks. Edits that use ${it} need ${it} in the pack.`;
+      const n = missingBase.length;
+      const it = n === 1 ? 'it' : 'them';
+      w.innerHTML = `${esc(`Leaves out ${n} of darktable’s own stocks. New edits can’t use ${it} while this pack is the default.`)} <button type="button" class="link-btn inline" id="add-base">Add ${it} back</button>`;
     } else w.hidden = true;
   }
 
@@ -503,7 +504,7 @@
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 30000);
       setP(1, 'Downloaded');
-      toast(`Downloaded ${a.download} (${mb(blob.size)}). Unzip it into darktable’s spektrafilm/packs folder, set default_pack=${hash} and restart darktable.`);
+      toast(`Downloaded ${a.download} (${mb(blob.size)}). Unzip it into darktable’s spektrafilm/packs folder, set default_pack=${hash} and restart darktable. New edits then see only this pack’s stocks.`);
     } catch (e) {
       toast(`The pack was not built: ${e.message}. Reload the page and try again; if it keeps failing, the site may be mid-update.`);
       btn.textContent = 'Download pack';
@@ -552,9 +553,17 @@
     $('#hide-approx').addEventListener('change', e => { filt.hideApprox = e.target.checked; renderGroups(); });
     $('#sel-shown').addEventListener('click', () => { shown().forEach(s => picked.add(s.stock)); save(); paintStates(); });
     $('#clear-shown').addEventListener('click', () => { shown().forEach(s => picked.delete(s.stock)); save(); paintStates(); });
-    $('#sel-dt').addEventListener('click', () => {
+    const selectDt = () => {
       picked.clear(); cat.stocks.filter(s => s.in_base).forEach(s => picked.add(s.stock)); save(); paintStates();
-      toast('Selected the stocks in darktable’s own pack.');
+      toast('Selected the stocks in darktable’s own pack. Pick yours on top.');
+    };
+    ['#sel-dt', '#sel-dt-note', '#sel-dt-faq'].forEach(id => $(id).addEventListener('click', selectDt));
+    // keeps what is picked and puts darktable's own stocks back in
+    $('#tray-warn').addEventListener('click', e => {
+      if (!e.target.closest('#add-base')) return;
+      const n = cat.stocks.filter(s => s.in_base && !picked.has(s.stock)).length;
+      cat.stocks.filter(s => s.in_base).forEach(s => picked.add(s.stock)); save(); paintStates();
+      toast(`Added ${plural(n, 'stock', 'stocks')} from darktable’s own pack.`);
     });
     $('#copy-link').addEventListener('click', async () => {
       const ids = [...picked];

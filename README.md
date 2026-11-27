@@ -77,6 +77,10 @@ published pack.
 If the clone, the manifest check or the merge fails, the build exits non-zero,
 nothing is deployed and the site keeps serving the last good build.
 
+## One pack for new edits
+
+darktable uses a single pack for new edits: the one `default_pack` names, or its own downloaded pack when the key is missing. A pack from this page therefore replaces darktable's stocks for new edits instead of adding to them, and stocks in other installed packs don't show up in the module. Edits that already record a pack keep rendering with it as long as it stays installed. The page says so above the shelf, in the install steps and in the FAQ, and the download tray warns, with a one-click fix, when a selection leaves out any of darktable's own stocks. To add stocks, start from darktable's own set and pick on top; to use negatives and slides together, put both in one pack.
+
 ## Set up on GitHub
 
 1. Push this folder to a new repository.
